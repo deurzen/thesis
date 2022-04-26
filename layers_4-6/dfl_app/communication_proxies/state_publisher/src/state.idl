@@ -1,0 +1,6 @@
+const long MAX_SEQUENCE_LENGTH = 100000000;
+
+struct State {
+    string<10> id; //@key
+    sequence<char, MAX_SEQUENCE_LENGTH> state;
+};

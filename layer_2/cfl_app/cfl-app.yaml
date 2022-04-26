@@ -1,0 +1,206 @@
+apiVersion: v1
+kind: Secret
+metadata:
+  name: communication
+data:
+  password: VEhFU0lTCg==
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: database
+data:
+  password: U0lTRUhUCg==
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cfl-central-service
+  labels:
+    app: cfl-central-service
+spec:
+  selector:
+    matchLabels:
+      app: cfl-central-service
+  replicas: 5
+  template:
+    metadata:
+      labels:
+        app: cfl-central-service
+    spec:
+      containers:
+        - name: monitor
+          image: deurzen/fedapp-monitor
+          tty: true
+          args: ["--user", "$(POSTGRES_USER)", "--password", "SISEHT", "--host", "$(HOST_IP)", "--port", "5432", "--interval", "1", "--table", "metrics"]
+          env:
+            - name: POSTGRES_USER
+              valueFrom:
+                configMapKeyRef:
+                  name: postgres-config
+                  key: user
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: database
+                  key: password
+            - name: HOST_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.hostIP
+        - name: server
+          image: deurzen/cfl-cs-server
+          tty: true
+          args: ["--id", "$(NODE_NAME)", "--host", "0.0.0.0", "--port", "38866", "--commrounds", "5000", "--seed", "12345"]
+          env:
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+            - name: POD_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+        - name: state-subscriber
+          image: deurzen/cfl-cs-statesub
+          tty: true
+          args: ["--port", "38866", "--password", "$(PARTICIPATION_PASSWORD)"]
+          env:
+            - name: PARTICIPATION_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: communication
+                  key: password
+        - name: state-publisher
+          image: deurzen/cfl-cs-statepub
+          tty: true
+          args: ["--port", "38866", "--password", "$(PARTICIPATION_PASSWORD)"]
+          env:
+            - name: PARTICIPATION_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: communication
+                  key: password
+        - name: participant-snooper
+          image: deurzen/cfl-cs-partsnoop
+          tty: true
+          args: ["--port", "38866", "--password", "$(PARTICIPATION_PASSWORD)"]
+          env:
+            - name: PARTICIPATION_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: communication
+                  key: password
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: cfl-distributed-app
+  namespace: default
+  labels:
+    k8s-app: cfl-distributed-app
+spec:
+  selector:
+    matchLabels:
+      name: cfl-distributed-app
+  template:
+    metadata:
+      labels:
+        name: cfl-distributed-app
+    spec:
+      tolerations:
+      - key: node-role.kubernetes.io/master
+        operator: Exists
+        effect: NoSchedule
+      initContainers:
+        - name: assert-db
+          image: busybox
+          command: ['sh', '-c', "until echo -e 'e' | telnet $(HOST_IP) 5432; do echo waiting for monitor-db to come up; sleep 5; done && sleep 30"]
+          env:
+            - name: HOST_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.hostIP
+        - name: noise-monitor
+          image: deurzen/fedapp-monitor
+          tty: true
+          args: ["--user", "$(POSTGRES_USER)", "--password", "SISEHT", "--host", "$(HOST_IP)", "--port", "5432", "--duration", "7200", "--interval", "1", "--table", "noise"]
+          env:
+            - name: POSTGRES_USER
+              valueFrom:
+                configMapKeyRef:
+                  name: postgres-config
+                  key: user
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: database
+                  key: password
+            - name: HOST_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.hostIP
+      containers:
+        - name: monitor
+          image: deurzen/fedapp-monitor
+          tty: true
+          args: ["--user", "$(POSTGRES_USER)", "--password", "SISEHT", "--host", "$(HOST_IP)", "--port", "5432", "--interval", "1", "--table", "metrics"]
+          env:
+            - name: POSTGRES_USER
+              valueFrom:
+                configMapKeyRef:
+                  name: postgres-config
+                  key: user
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: database
+                  key: password
+            - name: HOST_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.hostIP
+        - name: server
+          image: deurzen/cfl-da-server
+          tty: true
+          args: ["--id", "$(NODE_NAME)", "--host", "0.0.0.0", "--port", "38866", "--commrounds", "5000", "--seed", "12345"]
+          env:
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+            - name: POD_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+        - name: state-subscriber
+          image: deurzen/cfl-da-statesub
+          tty: true
+          args: ["--port", "38866", "--password", "$(PARTICIPATION_PASSWORD)"]
+          env:
+            - name: PARTICIPATION_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: communication
+                  key: password
+        - name: state-publisher
+          image: deurzen/cfl-da-statepub
+          tty: true
+          args: ["--port", "38866", "--password", "$(PARTICIPATION_PASSWORD)"]
+          env:
+            - name: PARTICIPATION_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: communication
+                  key: password
+        - name: participant-snooper
+          image: deurzen/cfl-da-partsnoop
+          tty: true
+          args: ["--port", "38866", "--password", "$(PARTICIPATION_PASSWORD)"]
+          env:
+            - name: PARTICIPATION_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: communication
+                  key: password
+      terminationGracePeriodSeconds: 30

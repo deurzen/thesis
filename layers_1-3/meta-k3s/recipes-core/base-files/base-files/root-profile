@@ -1,0 +1,20 @@
+alias k=kubectl
+
+alias kg='kubectl get'
+alias kga='kubectl get all -A'
+alias kgaw='kubectl get all -A -o wide'
+alias kp="kubectl get pods -o wide"
+alias kpw="kubectl get pods -o wide"
+alias kpa="kubectl get pods -A"
+alias kpaw="kubectl get pods -A -o wide"
+alias ks="kubectl get svc -o wide"
+alias ksw="kubectl get svc -o wide"
+alias ksa="kubectl get svc -A"
+alias ksaw="kubectl get svc -A -o wide"
+alias kn="kubectl get nodes"
+alias knw="kubectl get nodes -o wide"
+
+alias kd="kubectl describe"
+alias kl="kubectl logs"
+alias kds="kubectl describe -n kube-system"
+alias kls="kubectl logs -n kube-system"

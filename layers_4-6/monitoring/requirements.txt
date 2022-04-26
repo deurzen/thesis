@@ -1,0 +1,4 @@
+psutil
+pyserial
+psycopg2-binary
+argparse

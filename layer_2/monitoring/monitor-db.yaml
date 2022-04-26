@@ -1,0 +1,99 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: postgres-config
+  labels:
+    app: postgres
+data:
+  user: postgres
+  dbname: fl-monitor
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: database
+data:
+  password: U0lTRUhUCg==
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: monitor-db-pv
+  labels:
+    type: local
+spec:
+  storageClassName: manual
+  capacity:
+    storage: 3Gi
+  accessModes:
+    - ReadWriteOnce
+  hostPath:
+    path: "/mnt/monitor-db-data"
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: monitor-db-pvc
+spec:
+  storageClassName: manual
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 3Gi
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: monitor-db
+  namespace: default
+  labels:
+    k8s-app: monitor-db
+spec:
+  selector:
+    matchLabels:
+      name: monitor-db
+  template:
+    metadata:
+      labels:
+        name: monitor-db
+    spec:
+      hostNetwork: true
+      tolerations:
+      - key: node-role.kubernetes.io/master
+        operator: Exists
+        effect: NoSchedule
+      containers:
+        - name: postgres
+          image: postgres:11
+          env:
+            - name: POSTGRES_DB
+              valueFrom:
+                configMapKeyRef:
+                  name: postgres-config
+                  key: dbname
+            - name: POSTGRES_USER
+              valueFrom:
+                configMapKeyRef:
+                  name: postgres-config
+                  key: user
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: database
+                  key: password
+          lifecycle:
+            postStart:
+              exec:
+                command: ["/bin/sh", "-c", "sleep 20 && PGPASSWORD=$POSTGRES_PASSWORD psql -w -U $POSTGRES_USER -c 'CREATE TABLE IF NOT EXISTS noise (time timestamp not null, memory_used bigint, memory_free bigint, memory_available bigint, swap_used bigint, swap_free bigint, ctx_switches integer, interrupts integer, cpu_soft_interrupts integer, cpu0_freq numeric, cpu0_user numeric, cpu0_nice numeric, cpu0_system numeric, cpu0_idle numeric, cpu0_iowait numeric, cpu0_irq numeric, cpu0_softirq numeric, cpu0_steal numeric, cpu1_freq numeric, cpu1_user numeric, cpu1_nice numeric, cpu1_system numeric, cpu1_idle numeric, cpu1_iowait numeric, cpu1_irq numeric, cpu1_softirq numeric, cpu1_steal numeric, cpu2_freq numeric, cpu2_user numeric, cpu2_nice numeric, cpu2_system numeric, cpu2_idle numeric, cpu2_iowait numeric, cpu2_irq numeric, cpu2_softirq numeric, cpu2_steal numeric, cpu3_freq numeric, cpu3_user numeric, cpu3_nice numeric, cpu3_system numeric, cpu3_idle numeric, cpu3_iowait numeric, cpu3_irq numeric, cpu3_softirq numeric, cpu3_steal numeric, cpu_temp numeric, disk_total bigint, disk_free bigint, disk_used bigint, disk_read_bytes bigint, disk_read_count integer, disk_read_merged_count integer, disk_read_time integer, disk_write_bytes bigint, disk_write_count integer, disk_write_merged_count integer, disk_write_time integer, bytes_recv bigint, bytes_sent bigint, dropin integer, dropout integer, errin integer, errout integer, packets_recv integer, packets_sent integer, entropy integer, up_time integer, psi_cpu_avg10 numeric, psi_cpu_avg60 numeric, psi_cpu_avg300 numeric, psi_cpu_total numeric, psi_io_avg10 numeric, psi_io_avg60 numeric, psi_io_avg300 numeric, psi_io_total numeric, psi_memory_avg10 numeric, psi_memory_avg60 numeric, psi_memory_avg300 numeric, psi_memory_total numeric); CREATE TABLE IF NOT EXISTS metrics (time timestamp not null, memory_used bigint, memory_free bigint, memory_available bigint, swap_used bigint, swap_free bigint, ctx_switches integer, interrupts integer, cpu_soft_interrupts integer, cpu0_freq numeric, cpu0_user numeric, cpu0_nice numeric, cpu0_system numeric, cpu0_idle numeric, cpu0_iowait numeric, cpu0_irq numeric, cpu0_softirq numeric, cpu0_steal numeric, cpu1_freq numeric, cpu1_user numeric, cpu1_nice numeric, cpu1_system numeric, cpu1_idle numeric, cpu1_iowait numeric, cpu1_irq numeric, cpu1_softirq numeric, cpu1_steal numeric, cpu2_freq numeric, cpu2_user numeric, cpu2_nice numeric, cpu2_system numeric, cpu2_idle numeric, cpu2_iowait numeric, cpu2_irq numeric, cpu2_softirq numeric, cpu2_steal numeric, cpu3_freq numeric, cpu3_user numeric, cpu3_nice numeric, cpu3_system numeric, cpu3_idle numeric, cpu3_iowait numeric, cpu3_irq numeric, cpu3_softirq numeric, cpu3_steal numeric, cpu_temp numeric, disk_total bigint, disk_free bigint, disk_used bigint, disk_read_bytes bigint, disk_read_count integer, disk_read_merged_count integer, disk_read_time integer, disk_write_bytes bigint, disk_write_count integer, disk_write_merged_count integer, disk_write_time integer, bytes_recv bigint, bytes_sent bigint, dropin integer, dropout integer, errin integer, errout integer, packets_recv integer, packets_sent integer, entropy integer, up_time integer, psi_cpu_avg10 numeric, psi_cpu_avg60 numeric, psi_cpu_avg300 numeric, psi_cpu_total numeric, psi_io_avg10 numeric, psi_io_avg60 numeric, psi_io_avg300 numeric, psi_io_total numeric, psi_memory_avg10 numeric, psi_memory_avg60 numeric, psi_memory_avg300 numeric, psi_memory_total numeric);'"]
+          ports:
+            - containerPort: 5432
+              hostPort: 5432
+              name: mysql
+          volumeMounts:
+            - name: monitor-db-ps
+              mountPath: /var/lib/postgresql/data
+      volumes:
+        - name: monitor-db-ps
+          persistentVolumeClaim:
+            claimName: monitor-db-pvc

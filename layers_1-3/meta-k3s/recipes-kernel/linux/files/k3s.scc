@@ -1,0 +1,4 @@
+define KFEATURE_DESCRIPTION "Enable features needed by k3s"
+define KFEATURE_COMPATIBILITY board
+
+kconf non-hardware k3s.cfg

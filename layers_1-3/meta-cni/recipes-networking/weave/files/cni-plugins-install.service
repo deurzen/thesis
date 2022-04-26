@@ -1,0 +1,15 @@
+[Unit]
+Description=Installs CNI plugins required by Weave
+ConditionPathExists=/var/lib/kubernetes-cni-plugins
+StartLimitIntervalSec=1200
+StartLimitBurst=100
+
+[Install]
+WantedBy=multi-user.target
+
+[Service]
+Type=simple
+Restart=on-failure
+RestartSec=10
+ExecStart=/usr/local/bin/install-cni-plugins.sh
+RemainAfterExit=yes

@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 set -Eeo pipefail
 
+# https://community.rti.com/kb/creating-docker-image-rti-connext-dds
 docker run -it --rm -v `pwd`:/app -w="/app" dds-build make amd64
 docker run -it --rm -v `pwd`:/app -w="/app" dds-build make arm64
 
